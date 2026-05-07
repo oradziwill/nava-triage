@@ -1,5 +1,6 @@
 import json
 import logging
+
 from services.ai_clients import openai_client
 
 logger = logging.getLogger(__name__)
@@ -34,7 +35,9 @@ Zasady auto_escalate:
 - true jeśli: is_follow_up=true ORAZ priorytet był high, LUB kategoria security, LUB awaria trwa >48h"""
 
 
-async def triage_message(channel: str, sender: str, subject: str | None, body: str) -> dict:
+async def triage_message(
+    channel: str, sender: str, subject: str | None, body: str
+) -> dict:
     client = openai_client()
 
     user_content = f"Kanał: {channel}\nNadawca: {sender}"
@@ -57,4 +60,4 @@ async def triage_message(channel: str, sender: str, subject: str | None, body: s
         return json.loads(raw)
     except json.JSONDecodeError:
         logger.error("Triage JSON parse failed. Raw response: %s", raw)
-        raise ValueError(f"Claude returned invalid JSON: {raw[:200]}")
+        raise ValueError(f"System returned invalid JSON: {raw[:200]}")
