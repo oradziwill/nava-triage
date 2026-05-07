@@ -1,0 +1,21 @@
+# secrets
+.env
+*.env
+
+# python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# node
+node_modules/
+dist/
+.vite/
+
+# docker volumes / data
+postgres_data/
+
+# OS
+.DS_Store
