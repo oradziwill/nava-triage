@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from pydantic import BaseModel, ConfigDict, computed_field
 from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,6 +8,7 @@ from datetime import datetime
 from database import get_db
 from models.ticket import Ticket
 from services.briefing_generator import regenerate_briefing_background
+from services.ticket_ops import commit_and_refresh, get_ticket_or_404
 
 router = APIRouter(prefix="/api/tickets", tags=["tickets"])
 
@@ -80,10 +81,7 @@ async def list_tickets(
 
 @router.get("/{ticket_id}", response_model=TicketOut)
 async def get_ticket(ticket_id: int, db: AsyncSession = Depends(get_db)):
-    ticket = await db.get(Ticket, ticket_id)
-    if not ticket:
-        raise HTTPException(status_code=404, detail="Ticket not found")
-    return ticket
+    return await get_ticket_or_404(db, ticket_id)
 
 
 @router.patch("/{ticket_id}", response_model=TicketOut)
@@ -93,9 +91,7 @@ async def update_ticket(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
-    ticket = await db.get(Ticket, ticket_id)
-    if not ticket:
-        raise HTTPException(status_code=404, detail="Ticket not found")
+    ticket = await get_ticket_or_404(db, ticket_id)
 
     if patch.status is not None:
         ticket.status = patch.status
@@ -106,8 +102,7 @@ async def update_ticket(
     if patch.ai_draft_reply is not None:
         ticket.ai_draft_reply = patch.ai_draft_reply
 
-    await db.commit()
-    await db.refresh(ticket)
+    await commit_and_refresh(db, ticket)
     background_tasks.add_task(regenerate_briefing_background)
     return ticket
 
@@ -118,12 +113,9 @@ async def resolve_ticket(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
-    ticket = await db.get(Ticket, ticket_id)
-    if not ticket:
-        raise HTTPException(status_code=404, detail="Ticket not found")
+    ticket = await get_ticket_or_404(db, ticket_id)
     ticket.status = "resolved"
-    await db.commit()
-    await db.refresh(ticket)
+    await commit_and_refresh(db, ticket)
     background_tasks.add_task(regenerate_briefing_background)
     return ticket
 
@@ -134,11 +126,8 @@ async def dismiss_ticket(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
-    ticket = await db.get(Ticket, ticket_id)
-    if not ticket:
-        raise HTTPException(status_code=404, detail="Ticket not found")
+    ticket = await get_ticket_or_404(db, ticket_id)
     ticket.status = "dismissed"
-    await db.commit()
-    await db.refresh(ticket)
+    await commit_and_refresh(db, ticket)
     background_tasks.add_task(regenerate_briefing_background)
     return ticket

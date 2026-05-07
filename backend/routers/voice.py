@@ -15,12 +15,44 @@ from services.pl_utils import polish_date_spoken, normalize_for_tts
 from services.elevenlabs import synthesize_speech, build_intro_text
 from services.whisper import transcribe_audio
 from services.intent import interpret_voice_command
+from services.ticket_ops import (
+    INACTIVE_TICKET_STATUSES,
+    append_note,
+    commit_and_refresh,
+    get_ticket_or_404,
+)
 
 router = APIRouter(prefix="/api/voice", tags=["voice"])
 
 _PRIORITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 _CACHE_TTL_SECONDS = 1800  # 30 min
 _PRIORITY_PL = {"critical": "krytyczny", "high": "wysoki", "medium": "średni", "low": "niski"}
+
+
+def _ensure_audio_uploaded(audio_bytes: bytes) -> None:
+    if not audio_bytes:
+        raise HTTPException(status_code=400, detail="Empty audio file")
+
+
+async def _transcribe_uploaded_audio(audio_bytes: bytes, filename: str | None) -> dict:
+    try:
+        return await transcribe_audio(audio_bytes, filename or "recording.webm")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Transcription failed: {e}")
+
+
+def _validated_transcript(whisper_result: dict) -> str:
+    transcript = whisper_result["transcript"].strip()
+    if not transcript:
+        raise HTTPException(status_code=422, detail="Empty transcription result")
+    return transcript
+
+
+async def _extract_intent(transcript: str, context_text: str | None = None) -> dict:
+    try:
+        return await interpret_voice_command(transcript, context_text)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Intent extraction failed: {e}")
 
 
 # ── GET /api/voice/briefing ─────────────────────────────────────────────────
@@ -58,7 +90,7 @@ async def briefing_status():
 @router.get("/intro")
 async def get_intro(db: AsyncSession = Depends(get_db)):
     result = await db.execute(
-        select(Ticket).where(Ticket.status.notin_(["resolved", "dismissed"]))
+        select(Ticket).where(Ticket.status.notin_(INACTIVE_TICKET_STATUSES))
     )
     tickets = result.scalars().all()
     total    = len(tickets)
@@ -85,22 +117,11 @@ async def get_intro(db: AsyncSession = Depends(get_db)):
 @router.post("/interpret")
 async def interpret_voice(audio: UploadFile = File(...)):
     audio_bytes = await audio.read()
-    if not audio_bytes:
-        raise HTTPException(status_code=400, detail="Empty audio file")
+    _ensure_audio_uploaded(audio_bytes)
 
-    try:
-        whisper = await transcribe_audio(audio_bytes, audio.filename or "recording.webm")
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Transcription failed: {e}")
-
-    transcript = whisper["transcript"].strip()
-    if not transcript:
-        raise HTTPException(status_code=422, detail="Empty transcription result")
-
-    try:
-        intent = await interpret_voice_command(transcript)
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Intent extraction failed: {e}")
+    whisper = await _transcribe_uploaded_audio(audio_bytes, audio.filename)
+    transcript = _validated_transcript(whisper)
+    intent = await _extract_intent(transcript)
 
     return {
         "transcript": transcript,
@@ -120,17 +141,9 @@ async def voice_command(
 ):
     # 1. Transcribe
     audio_bytes = await audio.read()
-    if not audio_bytes:
-        raise HTTPException(status_code=400, detail="Empty audio file")
-
-    try:
-        whisper = await transcribe_audio(audio_bytes, audio.filename or "recording.webm")
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Transcription failed: {e}")
-
-    transcript = whisper["transcript"].strip()
-    if not transcript:
-        raise HTTPException(status_code=422, detail="Empty transcription result")
+    _ensure_audio_uploaded(audio_bytes)
+    whisper = await _transcribe_uploaded_audio(audio_bytes, audio.filename)
+    transcript = _validated_transcript(whisper)
 
     # 2. Build context for intent extraction
     context_ticket: Optional[Ticket] = None
@@ -149,7 +162,7 @@ async def voice_command(
     else:
         result = await db.execute(
             select(Ticket)
-            .where(Ticket.status.notin_(["resolved", "dismissed"]))
+            .where(Ticket.status.notin_(INACTIVE_TICKET_STATUSES))
             .limit(10)
         )
         active = result.scalars().all()
@@ -161,10 +174,7 @@ async def voice_command(
             context_text = f"Aktywne zgłoszenia: {summaries}"
 
     # 3. Extract intent
-    try:
-        intent = await interpret_voice_command(transcript, context_text)
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Intent extraction failed: {e}")
+    intent = await _extract_intent(transcript, context_text)
 
     intent_type = intent.get("intent", "unknown")
     confidence = intent.get("confidence", 0.0)
@@ -182,16 +192,12 @@ async def voice_command(
 
     elif intent_type == "escalate":
         if not context_ticket:
-            raise HTTPException(status_code=404, detail="Ticket not found")
+            context_ticket = await get_ticket_or_404(db, context_ticket_id)
         context_ticket.admin_override_priority = "critical"
         note = "Eskalowano głosowo przez RM"
-        context_ticket.admin_notes = (
-            (context_ticket.admin_notes + "\n" + note).strip()
-            if context_ticket.admin_notes else note
-        )
+        context_ticket.admin_notes = append_note(context_ticket.admin_notes, note)
         context_ticket.escalated = True
-        await db.commit()
-        await db.refresh(context_ticket)
+        await commit_and_refresh(db, context_ticket)
         background_tasks.add_task(regenerate_briefing_background)
         action_taken = "escalated"
         affected_ticket_id = context_ticket.id
@@ -200,10 +206,9 @@ async def voice_command(
 
     elif intent_type == "resolve":
         if not context_ticket:
-            raise HTTPException(status_code=404, detail="Ticket not found")
+            context_ticket = await get_ticket_or_404(db, context_ticket_id)
         context_ticket.status = "resolved"
-        await db.commit()
-        await db.refresh(context_ticket)
+        await commit_and_refresh(db, context_ticket)
         background_tasks.add_task(regenerate_briefing_background)
         action_taken = "resolved"
         affected_ticket_id = context_ticket.id
@@ -211,14 +216,10 @@ async def voice_command(
 
     elif intent_type == "add_note":
         if not context_ticket:
-            raise HTTPException(status_code=404, detail="Ticket not found")
+            context_ticket = await get_ticket_or_404(db, context_ticket_id)
         note = "[GŁOSOWE] " + transcript
-        context_ticket.admin_notes = (
-            (context_ticket.admin_notes + "\n" + note).strip()
-            if context_ticket.admin_notes else note
-        )
-        await db.commit()
-        await db.refresh(context_ticket)
+        context_ticket.admin_notes = append_note(context_ticket.admin_notes, note)
+        await commit_and_refresh(db, context_ticket)
         background_tasks.add_task(regenerate_briefing_background)
         action_taken = "note_added"
         affected_ticket_id = context_ticket.id

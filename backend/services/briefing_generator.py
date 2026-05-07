@@ -7,15 +7,15 @@ import json
 import logging
 from datetime import datetime
 
-from openai import OpenAI
 from sqlalchemy import select
 
-from config import settings
 from database import AsyncSessionLocal
 from models.ticket import Ticket
+from services.ai_clients import openai_client
 from services.briefing_cache import get_cache
 from services.elevenlabs import synthesize_speech
 from services.pl_utils import polish_date_spoken, pl_tickets
+from services.ticket_ops import INACTIVE_TICKET_STATUSES
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ Zasady treści:
 
 
 def _build_script_sync(tickets_json: str, weekday: str, day_ordinal: str, month: str, ticket_count_word: str) -> str:
-    client = OpenAI(api_key=settings.OPENAI_API_KEY)
+    client = openai_client()
     prompt = BRIEFING_SYSTEM.format(
         weekday=weekday,
         day_ordinal=day_ordinal,
@@ -68,7 +68,7 @@ async def regenerate_briefing_background() -> None:
     try:
         async with AsyncSessionLocal() as db:
             result = await db.execute(
-                select(Ticket).where(Ticket.status.notin_(["resolved", "dismissed"]))
+                select(Ticket).where(Ticket.status.notin_(INACTIVE_TICKET_STATUSES))
             )
             tickets = result.scalars().all()
 

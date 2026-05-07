@@ -1,29 +1,51 @@
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import String, Text, Integer, Boolean, DateTime, Float, func, JSON
+from sqlalchemy import Boolean, JSON, DateTime, Float, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from database import Base
 
 
+SHORT_TEXT_LEN = 20
+MEDIUM_TEXT_LEN = 30
+LONG_TEXT_LEN = 255
+SUBJECT_TEXT_LEN = 500
+
+
+def short_text_column(**kwargs):
+    return mapped_column(String(SHORT_TEXT_LEN), **kwargs)
+
+
+def timestamp_column(*, on_update: bool = False):
+    options = {"server_default": func.now()}
+    if on_update:
+        options["onupdate"] = func.now()
+    return mapped_column(DateTime(timezone=True), **options)
+
+
 class Ticket(Base):
     __tablename__ = "tickets"
 
+    # Metadata
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = timestamp_column()
+    updated_at: Mapped[datetime] = timestamp_column(on_update=True)
 
-    channel: Mapped[str] = mapped_column(String(20))          # email | sms | voice
-    sender: Mapped[Optional[str]] = mapped_column(String(255)) # raw sender (email or phone)
-    sender_type: Mapped[str] = mapped_column(String(20), default="unknown")
+    # Source
+    channel: Mapped[str] = short_text_column()  # email | sms | voice
+    sender: Mapped[Optional[str]] = mapped_column(String(LONG_TEXT_LEN))  # raw sender (email or phone)
+    sender_type: Mapped[str] = short_text_column(default="unknown")
 
-    subject: Mapped[Optional[str]] = mapped_column(String(500))
+    # Ticket content
+    subject: Mapped[Optional[str]] = mapped_column(String(SUBJECT_TEXT_LEN))
     body_raw: Mapped[Optional[str]] = mapped_column(Text)
 
-    priority: Mapped[str] = mapped_column(String(20), default="medium")
-    category: Mapped[str] = mapped_column(String(30), default="other")
-    status: Mapped[str] = mapped_column(String(20), default="new")
+    # Routing state
+    priority: Mapped[str] = short_text_column(default="medium")
+    category: Mapped[str] = mapped_column(String(MEDIUM_TEXT_LEN), default="other")
+    status: Mapped[str] = short_text_column(default="new")
 
+    # AI-generated fields
     ai_summary: Mapped[Optional[str]] = mapped_column(Text)
     ai_draft_reply: Mapped[Optional[str]] = mapped_column(Text)
     ai_reasoning: Mapped[Optional[str]] = mapped_column(Text)
@@ -32,8 +54,10 @@ class Ticket(Base):
     ai_follow_up_signals: Mapped[Optional[list]] = mapped_column(JSON)
     confidence: Mapped[Optional[float]] = mapped_column(Float)
 
-    admin_override_priority: Mapped[Optional[str]] = mapped_column(String(20))
+    # Human override fields
+    admin_override_priority: Mapped[Optional[str]] = short_text_column()
     admin_notes: Mapped[Optional[str]] = mapped_column(Text)
 
+    # Workflow counters
     follow_up_count: Mapped[int] = mapped_column(Integer, default=0)
     escalated: Mapped[bool] = mapped_column(Boolean, default=False)
