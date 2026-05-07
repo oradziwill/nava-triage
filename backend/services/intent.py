@@ -7,7 +7,7 @@ Otrzymujesz transkrypcję dyktowanej notatki lub decyzji.
 Wyciągnij intencję i zwróć TYLKO poprawny JSON:
 
 {
-  "intent": "create_ticket|add_note|escalate|resolve|call_vendor|schedule|dismiss|unknown",
+  "intent": "create_ticket|add_note|add_task|escalate|resolve|call_vendor|schedule|dismiss|unknown",
   "confidence": 0.0,
   "summary": "jedno zdanie — co administrator chce zrobić",
   "entities": {
@@ -25,7 +25,13 @@ Wyciągnij intencję i zwróć TYLKO poprawny JSON:
   "human_readable": "Co zrozumiałem: [opis akcji po polsku, 1 zdanie]"
 }
 
+Rozróżnienie add_note vs add_task:
+- add_note: informacja opisowa, obserwacja, fakt który warto zapamiętać (np. „lokator dzwonił", „woda przestała ciec").
+- add_task: konkretna czynność do wykonania, którą można odhaczać (np. „zadzwoń do hydraulika", „sprawdź lokal", „wyślij pismo", „umów przegląd").
+
 Jeśli podano kontekst aktywnego zgłoszenia, słowa takie jak 'to', 'tę sprawę', 'eskaluj', 'zamknij', 'rozwiąż' odnoszą się do tego zgłoszenia.
+
+Jeśli podano kontekst aktywnego zgłoszenia: użyj add_note dla informacji opisowych, add_task dla czynności do wykonania. NIE używaj create_ticket ani call_vendor — zamiast tego: call_vendor → add_task (np. „zadzwoń do hydraulika" → zadanie: zadzwoń do hydraulika). Wyjątek: create_ticket tylko gdy użytkownik WYRAŹNIE prosi o nowe zgłoszenie (np. „stwórz nowe zgłoszenie").
 
 Przykłady:
 - "wezwij hydraulika do budynku B" → intent: call_vendor, vendor_type: hydraulik, building: B
@@ -33,7 +39,10 @@ Przykłady:
 - "rozwiąż tę sprawę" → intent: resolve
 - "dodaj notatkę że dzwoniłem do hydraulika" → intent: add_note
 - "zadzwoń do Kowalskiego z mieszkania 3A" → intent: call_vendor (person: Kowalski), apartment: 3A
-- "odwołaj zlecenie dla elektryka" → intent: dismiss"""
+- "odwołaj zlecenie dla elektryka" → intent: dismiss
+- "sprawdź stan instalacji w piwnicy" → intent: add_task
+- "przypomnij wysłać pismo do lokatora" → intent: add_task
+- "lokator potwierdził że woda przestała ciec" → intent: add_note"""
 
 
 def _interpret_sync(transcript: str, context: str | None) -> dict:

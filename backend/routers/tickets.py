@@ -29,6 +29,7 @@ class TicketOut(BaseModel):
     priority: str
     category: str
     status: str
+    ai_title: Optional[str]
     ai_summary: Optional[str]
     ai_draft_reply: Optional[str]
     ai_reasoning: Optional[str]
@@ -38,6 +39,7 @@ class TicketOut(BaseModel):
     confidence: Optional[float] = None
     admin_override_priority: Optional[str]
     admin_notes: Optional[str]
+    tasks: Optional[list] = None
     follow_up_count: int
     escalated: bool
 
@@ -53,6 +55,7 @@ class TicketPatch(BaseModel):
     admin_notes: Optional[str] = None
     admin_override_priority: Optional[str] = None
     ai_draft_reply: Optional[str] = None
+    tasks: Optional[list] = None
 
 
 @router.get("", response_model=List[TicketOut])
@@ -101,6 +104,8 @@ async def update_ticket(
         ticket.admin_override_priority = patch.admin_override_priority
     if patch.ai_draft_reply is not None:
         ticket.ai_draft_reply = patch.ai_draft_reply
+    if patch.tasks is not None:
+        ticket.tasks = patch.tasks
 
     await commit_and_refresh(db, ticket)
     background_tasks.add_task(regenerate_briefing_background)

@@ -30,7 +30,9 @@ interface Props {
 
 export function TicketCard({ ticket, selected, onClick }: Props) {
   const priority = ticket.admin_override_priority || ticket.priority
-  const preview = ticket.subject || (ticket.body_raw?.slice(0, 60) ?? '')
+  const rawTitle = ticket.subject || ticket.ai_title || ticket.ai_summary || (ticket.body_raw?.slice(0, 60) ?? '')
+  const title = rawTitle ? rawTitle.charAt(0).toUpperCase() + rawTitle.slice(1) : ''
+  const showSummaryBelow = !!(ticket.ai_summary && ticket.subject)
 
   return (
     <div
@@ -55,9 +57,9 @@ export function TicketCard({ ticket, selected, onClick }: Props) {
             )}
           </div>
 
-          {/* subject / body preview */}
+          {/* title */}
           <p className="font-medium text-gray-900 text-sm truncate">
-            {CHANNEL_ICON[ticket.channel] ?? '📩'} {preview || '(brak treści)'}
+            {CHANNEL_ICON[ticket.channel] ?? '📩'} {title || '(brak treści)'}
           </p>
 
           {/* sender */}
@@ -65,8 +67,8 @@ export function TicketCard({ ticket, selected, onClick }: Props) {
             {(ticket.sender ?? 'Nieznany').slice(0, 28)}
           </p>
 
-          {/* AI summary */}
-          {ticket.ai_summary && (
+          {/* AI summary — only when not already used as title */}
+          {showSummaryBelow && (
             <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{ticket.ai_summary}</p>
           )}
         </div>

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Ticket, updateTicket, resolveTicket, dismissTicket } from '../api/client'
+import { Ticket, TicketTask, updateTicket, resolveTicket, dismissTicket } from '../api/client'
 import { PriorityBadge } from '../components/PriorityBadge'
 
 const CHANNEL_ICON: Record<string, string> = { email: '✉️', sms: '💬', voice: '🎤' }
@@ -15,6 +15,23 @@ export function TicketDetail({ ticket, onUpdate }: Props) {
   const [notes, setNotes]           = useState(ticket.admin_notes ?? '')
   const [saving, setSaving]         = useState(false)
   const [reasonOpen, setReasonOpen] = useState(false)
+  const [newTask, setNewTask]       = useState('')
+  const [addingTask, setAddingTask] = useState(false)
+
+  async function addTask() {
+    const text = newTask.trim()
+    if (!text) return
+    setAddingTask(true)
+    try {
+      const updated = await updateTicket(ticket.id, {
+        tasks: [...(ticket.tasks ?? []), { id: crypto.randomUUID(), text, done: false }],
+      })
+      onUpdate(updated)
+      setNewTask('')
+    } finally {
+      setAddingTask(false)
+    }
+  }
 
   const prevPriority = ticket.priority
   const effectivePriority = override || ticket.priority
@@ -171,6 +188,52 @@ export function TicketDetail({ ticket, onUpdate }: Props) {
             <option value="medium">MEDIUM</option>
             <option value="low">LOW</option>
           </select>
+        </div>
+      </div>
+
+      {/* Tasks */}
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">Zadania</p>
+        {ticket.tasks && ticket.tasks.length > 0 && (
+          <ul className="flex flex-col gap-1.5 mb-2">
+            {ticket.tasks.map((task: TicketTask) => (
+              <li key={task.id} className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  checked={task.done}
+                  onChange={async () => {
+                    const updated = await updateTicket(ticket.id, {
+                      tasks: ticket.tasks!.map(t =>
+                        t.id === task.id ? { ...t, done: !t.done } : t
+                      ),
+                    })
+                    onUpdate(updated)
+                  }}
+                  className="mt-0.5 accent-green-600 cursor-pointer"
+                />
+                <span className={`text-sm ${task.done ? 'line-through text-gray-400' : 'text-gray-800'}`}>
+                  {task.text}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="flex gap-2">
+          <input
+            className="flex-1 border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+            placeholder="Dodaj zadanie..."
+            value={newTask}
+            onChange={e => setNewTask(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && addTask()}
+            disabled={addingTask}
+          />
+          <button
+            onClick={addTask}
+            disabled={addingTask || !newTask.trim()}
+            className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 disabled:opacity-50 transition-colors"
+          >
+            Dodaj
+          </button>
         </div>
       </div>
 

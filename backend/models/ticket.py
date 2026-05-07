@@ -46,6 +46,7 @@ class Ticket(Base):
     status: Mapped[str] = short_text_column(default="new")
 
     # AI-generated fields
+    ai_title: Mapped[Optional[str]] = mapped_column(String(LONG_TEXT_LEN))
     ai_summary: Mapped[Optional[str]] = mapped_column(Text)
     ai_draft_reply: Mapped[Optional[str]] = mapped_column(Text)
     ai_reasoning: Mapped[Optional[str]] = mapped_column(Text)
@@ -57,6 +58,9 @@ class Ticket(Base):
     # Human override fields
     admin_override_priority: Mapped[Optional[str]] = short_text_column()
     admin_notes: Mapped[Optional[str]] = mapped_column(Text)
+
+    # Tasks — list of {id: str, text: str, done: bool}
+    tasks: Mapped[Optional[list]] = mapped_column(JSON, nullable=True, default=None)
 
     # Workflow counters
     follow_up_count: Mapped[int] = mapped_column(Integer, default=0)

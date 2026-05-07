@@ -51,6 +51,7 @@ async def ingest_message(
         priority=priority,
         category=triage.get("category", "other"),
         status="new",
+        ai_title=triage.get("title"),
         ai_summary=triage.get("summary"),
         ai_draft_reply=triage.get("draft_reply"),
         ai_reasoning=triage.get("reasoning"),

@@ -1,4 +1,5 @@
 import base64
+import uuid
 from datetime import datetime
 from typing import Optional
 
@@ -184,10 +185,17 @@ async def voice_command(
     confirmation_text = "Nie zrozumiałem polecenia. Powiedz jeszcze raz lub opisz dokładniej."
 
     # 4. Execute action
+    # When a ticket is open: call_vendor is always a task; descriptive create_ticket becomes a note
+    if context_ticket_id:
+        if intent_type == "call_vendor":
+            intent_type = "add_task"
+        elif intent_type == "create_ticket":
+            intent_type = "add_note"
+
     if intent_type == "unknown" or confidence < 0.4:
         pass  # keep default confirmation_text
 
-    elif intent_type in ("escalate", "resolve", "add_note") and not context_ticket_id:
+    elif intent_type in ("escalate", "resolve", "add_note", "add_task") and not context_ticket_id:
         confirmation_text = "Nie wiem o które zgłoszenie chodzi. Otwórz sprawę i spróbuj ponownie."
 
     elif intent_type == "escalate":
@@ -217,13 +225,25 @@ async def voice_command(
     elif intent_type == "add_note":
         if not context_ticket:
             context_ticket = await get_ticket_or_404(db, context_ticket_id)
-        note = "[GŁOSOWE] " + transcript
-        context_ticket.admin_notes = append_note(context_ticket.admin_notes, note)
+        note_body = (intent.get("suggested_ticket") or {}).get("body") or transcript
+        context_ticket.admin_notes = append_note(context_ticket.admin_notes, "[GŁOSOWE] " + note_body)
         await commit_and_refresh(db, context_ticket)
         background_tasks.add_task(regenerate_briefing_background)
         action_taken = "note_added"
         affected_ticket_id = context_ticket.id
-        confirmation_text = "Gotowe. Dodałem notatkę do zgłoszenia."
+        summary = intent.get("summary") or transcript[:60]
+        confirmation_text = f"Gotowe. Dodałem notatkę do zgłoszenia: {summary}."
+
+    elif intent_type == "add_task":
+        if not context_ticket:
+            context_ticket = await get_ticket_or_404(db, context_ticket_id)
+        task_text = (intent.get("suggested_ticket") or {}).get("body") or intent.get("summary") or transcript
+        context_ticket.tasks = list(context_ticket.tasks or []) + [{"id": str(uuid.uuid4()), "text": task_text, "done": False}]
+        await commit_and_refresh(db, context_ticket)
+        background_tasks.add_task(regenerate_briefing_background)
+        action_taken = "task_added"
+        affected_ticket_id = context_ticket.id
+        confirmation_text = f"Gotowe. Dodałem zadanie: {task_text}."
 
     elif intent_type in ("create_ticket", "call_vendor"):
         suggested = intent.get("suggested_ticket") or {}

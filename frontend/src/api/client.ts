@@ -1,5 +1,11 @@
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8002'
 
+export interface TicketTask {
+  id: string
+  text: string
+  done: boolean
+}
+
 export interface Ticket {
   id: number
   created_at: string
@@ -12,6 +18,7 @@ export interface Ticket {
   priority: 'critical' | 'high' | 'medium' | 'low'
   category: string
   status: string
+  ai_title: string | null
   ai_summary: string | null
   ai_draft_reply: string | null
   ai_reasoning: string | null
@@ -21,6 +28,7 @@ export interface Ticket {
   confidence: number | null
   admin_override_priority: string | null
   admin_notes: string | null
+  tasks: TicketTask[] | null
   follow_up_count: number
   escalated: boolean
   priority_order: number
@@ -125,7 +133,7 @@ export async function interpretVoice(audioBlob: Blob, filename: string): Promise
   return res.json()
 }
 
-export type VoiceActionTaken = 'created_ticket' | 'escalated' | 'resolved' | 'note_added' | 'none'
+export type VoiceActionTaken = 'created_ticket' | 'escalated' | 'resolved' | 'note_added' | 'task_added' | 'none'
 
 export interface VoiceCommandResult {
   transcript: string

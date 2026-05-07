@@ -12,6 +12,7 @@ Zwróć TYLKO poprawny JSON, bez markdown, bez dodatkowego tekstu:
   "priority": "critical|high|medium|low",
   "category": "security|maintenance|billing|complaint|board|vendor|other",
   "sender_type": "resident|vendor|board|unknown",
+  "title": "2-4 słowa po polsku — rzeczownikowa nazwa problemu, np. 'zalana piwnica', 'awaria windy', 'brak ogrzewania'",
   "summary": "1-2 zdania po polsku — co się dzieje i dlaczego to ważne",
   "reasoning": "dlaczego taki priorytet, co zadecydowało",
   "is_follow_up": true,

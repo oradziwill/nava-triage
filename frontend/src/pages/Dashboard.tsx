@@ -65,7 +65,7 @@ export function Dashboard() {
       await load()
     } else if (
       result.affected_ticket_id != null &&
-      (result.action_taken === 'escalated' || result.action_taken === 'resolved' || result.action_taken === 'note_added')
+      (result.action_taken === 'escalated' || result.action_taken === 'resolved' || result.action_taken === 'note_added' || result.action_taken === 'task_added')
     ) {
       try {
         const updated = await getTicket(result.affected_ticket_id)
@@ -88,19 +88,25 @@ export function Dashboard() {
     }
   }
 
-  const activeTickets   = tickets.filter(t => !['resolved', 'dismissed'].includes(t.status))
-  const resolvedTickets = tickets.filter(t => t.status === 'resolved')
+  const activeTickets: Ticket[]   = []
+  const resolvedTickets: Ticket[] = []
+  const counts = { critical: 0, high: 0 }
+  for (const t of tickets) {
+    if (t.status === 'resolved') {
+      resolvedTickets.push(t)
+    } else if (t.status !== 'dismissed') {
+      activeTickets.push(t)
+      const p = t.admin_override_priority || t.priority
+      if (p === 'critical') counts.critical++
+      else if (p === 'high') counts.high++
+    }
+  }
 
   const displayedTickets = (activeTab === 'active' ? activeTickets : resolvedTickets).filter(t => {
     if (filterPriority && (t.admin_override_priority || t.priority) !== filterPriority) return false
     if (filterCategory && t.category !== filterCategory) return false
     return true
   })
-
-  const counts = {
-    critical: activeTickets.filter(t => (t.admin_override_priority || t.priority) === 'critical').length,
-    high:     activeTickets.filter(t => (t.admin_override_priority || t.priority) === 'high').length,
-  }
 
   return (
     <div className="flex flex-col h-screen bg-gray-100">
