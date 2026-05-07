@@ -1,6 +1,6 @@
 # Nava — AI Triage System
 
-AI-powered inbox for residential property managers. Replaces Excel triaging with a priority queue driven by Claude.
+AI-powered inbox for residential property managers. Replaces Excel triaging with a priority queue.
 
 ## Quick Start
 
@@ -30,20 +30,20 @@ curl -X POST http://localhost:8000/api/ingest \
 
 ## API
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/ingest` | Ingest a message → AI triage → create ticket |
-| GET | `/api/tickets` | List tickets (filters: status, priority, category) |
-| GET | `/api/tickets/{id}` | Get single ticket |
-| PATCH | `/api/tickets/{id}` | Update status / notes / override priority |
-| POST | `/api/tickets/{id}/resolve` | Mark resolved |
-| POST | `/api/tickets/{id}/dismiss` | Dismiss |
-| GET | `/health` | Backend health check |
+| Method | Path                        | Description                                        |
+| ------ | --------------------------- | -------------------------------------------------- |
+| POST   | `/api/ingest`               | Ingest a message → AI triage → create ticket       |
+| GET    | `/api/tickets`              | List tickets (filters: status, priority, category) |
+| GET    | `/api/tickets/{id}`         | Get single ticket                                  |
+| PATCH  | `/api/tickets/{id}`         | Update status / notes / override priority          |
+| POST   | `/api/tickets/{id}/resolve` | Mark resolved                                      |
+| POST   | `/api/tickets/{id}/dismiss` | Dismiss                                            |
+| GET    | `/health`                   | Backend health check                               |
 
 ## Phase 1 Checklist
 
 - [x] `docker-compose up` starts everything
-- [x] `POST /api/ingest` triages via Claude and stores ticket
+- [x] `POST /api/ingest` triages via AI and stores ticket
 - [x] `GET /api/tickets` returns sorted, filtered list
 - [x] Frontend shows tickets with priority color coding
 - [x] Admin can open ticket, edit AI draft, mark as resolved
