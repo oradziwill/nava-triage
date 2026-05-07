@@ -1,7 +1,6 @@
 import json
 import logging
-from openai import OpenAI
-from config import settings
+from services.ai_clients import openai_client
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +34,7 @@ Zasady auto_escalate:
 
 
 async def triage_message(channel: str, sender: str, subject: str | None, body: str) -> dict:
-    client = OpenAI(api_key=settings.OPENAI_API_KEY)
+    client = openai_client()
 
     user_content = f"Kanał: {channel}\nNadawca: {sender}"
     if subject:

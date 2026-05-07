@@ -1,12 +1,11 @@
 import io
 import math
 import asyncio
-from openai import OpenAI
-from config import settings
+from services.ai_clients import openai_client
 
 
 def _transcribe_sync(audio_bytes: bytes, filename: str) -> dict:
-    client = OpenAI(api_key=settings.OPENAI_API_KEY)
+    client = openai_client()
     buf = io.BytesIO(audio_bytes)
     buf.name = filename
 

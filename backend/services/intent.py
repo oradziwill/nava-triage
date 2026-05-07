@@ -1,7 +1,6 @@
 import json
 import asyncio
-from openai import OpenAI
-from config import settings
+from services.ai_clients import openai_client
 
 INTENT_SYSTEM_PROMPT = """Jesteś asystentem administratora nieruchomości.
 Otrzymujesz transkrypcję dyktowanej notatki lub decyzji.
@@ -38,7 +37,7 @@ Przykłady:
 
 
 def _interpret_sync(transcript: str, context: str | None) -> dict:
-    client = OpenAI(api_key=settings.OPENAI_API_KEY)
+    client = openai_client()
     user_msg = f'Transkrypcja: "{transcript}"'
     if context:
         user_msg += f"\n\nKontekst:\n{context}"

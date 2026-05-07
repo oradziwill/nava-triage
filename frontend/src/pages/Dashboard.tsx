@@ -5,7 +5,6 @@ import { TicketDetail } from './TicketDetail'
 import { VoiceBriefing } from '../components/VoiceBriefing'
 import { VoiceInput } from '../components/VoiceInput'
 
-const STATUSES   = ['', 'new', 'in_progress', 'waiting', 'resolved', 'dismissed']
 const PRIORITIES = ['', 'critical', 'high', 'medium', 'low']
 const CATEGORIES = ['', 'security', 'maintenance', 'billing', 'complaint', 'board', 'vendor', 'other']
 
@@ -15,7 +14,7 @@ export function Dashboard() {
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState<string | null>(null)
 
-  const [filterStatus,   setFilterStatus]   = useState('')
+  const [activeTab,      setActiveTab]      = useState<'active' | 'resolved'>('active')
   const [filterPriority, setFilterPriority] = useState('')
   const [filterCategory, setFilterCategory] = useState('')
 
@@ -30,17 +29,13 @@ export function Dashboard() {
     setLoading(true)
     setError(null)
     try {
-      const params: Record<string, string> = {}
-      if (filterStatus)   params.status   = filterStatus
-      if (filterPriority) params.priority = filterPriority
-      if (filterCategory) params.category = filterCategory
-      setTickets(await getTickets(Object.keys(params).length ? params : undefined))
+      setTickets(await getTickets())
     } catch (e) {
       setError(String(e))
     } finally {
       setLoading(false)
     }
-  }, [filterStatus, filterPriority, filterCategory])
+  }, [])
 
   useEffect(() => { load() }, [load])
 
@@ -51,8 +46,16 @@ export function Dashboard() {
   }
 
   function handleUpdate(updated: Ticket) {
-    setTickets(prev => prev.map(t => t.id === updated.id ? updated : t))
-    setSelected(updated)
+    if (updated.status === 'dismissed') {
+      setTickets(prev => prev.filter(t => t.id !== updated.id))
+      setSelected(null)
+    } else {
+      setTickets(prev => prev.map(t => t.id === updated.id ? updated : t))
+      setSelected(updated)
+      if (updated.status === 'resolved') {
+        setActiveTab('resolved')
+      }
+    }
   }
 
   async function handleCommandExecuted(result: VoiceCommandResult) {
@@ -85,9 +88,18 @@ export function Dashboard() {
     }
   }
 
+  const activeTickets   = tickets.filter(t => !['resolved', 'dismissed'].includes(t.status))
+  const resolvedTickets = tickets.filter(t => t.status === 'resolved')
+
+  const displayedTickets = (activeTab === 'active' ? activeTickets : resolvedTickets).filter(t => {
+    if (filterPriority && (t.admin_override_priority || t.priority) !== filterPriority) return false
+    if (filterCategory && t.category !== filterCategory) return false
+    return true
+  })
+
   const counts = {
-    critical: tickets.filter(t => (t.admin_override_priority || t.priority) === 'critical').length,
-    high:     tickets.filter(t => (t.admin_override_priority || t.priority) === 'high').length,
+    critical: activeTickets.filter(t => (t.admin_override_priority || t.priority) === 'critical').length,
+    high:     activeTickets.filter(t => (t.admin_override_priority || t.priority) === 'high').length,
   }
 
   return (
@@ -133,7 +145,6 @@ export function Dashboard() {
       <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-2 text-sm flex-wrap">
         <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide mr-1">Filtry:</span>
         {[
-          { label: 'Status',    value: filterStatus,   set: setFilterStatus,   options: STATUSES },
           { label: 'Priorytet', value: filterPriority, set: setFilterPriority, options: PRIORITIES },
           { label: 'Kategoria', value: filterCategory, set: setFilterCategory, options: CATEGORIES },
         ].map(({ label, value, set, options }) => (
@@ -144,24 +155,63 @@ export function Dashboard() {
             onChange={e => set(e.target.value)}
           >
             <option value="">{label}: wszystkie</option>
-            {options.filter(Boolean).map(o => <option key={o} value={o}>{o}</option>)}
+            {options.filter(Boolean).map((o: string) => <option key={o} value={o}>{o}</option>)}
           </select>
         ))}
-        <span className="ml-auto text-xs text-gray-400">{tickets.length} zgłoszeń</span>
+        <span className="ml-auto text-xs text-gray-400">{displayedTickets.length} zgłoszeń</span>
       </div>
 
       {/* Main */}
       <div className="flex flex-1 overflow-hidden">
-        <div className="w-72 flex-shrink-0 overflow-y-auto p-3 border-r border-gray-200 bg-gray-50">
-          {loading && <p className="text-sm text-gray-400 text-center mt-10">Ładowanie...</p>}
-          {error   && <p className="text-sm text-red-400 text-center mt-10">{error}</p>}
-          {!loading && !error && tickets.length === 0 && (
-            <p className="text-sm text-gray-400 text-center mt-10">Brak zgłoszeń</p>
-          )}
-          {tickets.map(t => (
-            <TicketCard key={t.id} ticket={t} selected={selected?.id === t.id} onClick={() => setSelected(t)} />
-          ))}
+        <div className="w-72 flex-shrink-0 flex flex-col border-r border-gray-200 bg-gray-50">
+
+          {/* Tabs */}
+          <div className="flex border-b border-gray-200 bg-white">
+            <button
+              onClick={() => { setActiveTab('active'); setSelected(null) }}
+              className={`flex-1 text-xs font-semibold py-2 transition-colors ${
+                activeTab === 'active'
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Aktywne
+              {activeTickets.length > 0 && (
+                <span className="ml-1.5 bg-gray-100 text-gray-600 rounded-full px-1.5 py-0.5 text-xs">
+                  {activeTickets.length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => { setActiveTab('resolved'); setSelected(null) }}
+              className={`flex-1 text-xs font-semibold py-2 transition-colors ${
+                activeTab === 'resolved'
+                  ? 'text-green-600 border-b-2 border-green-600'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Rozwiązane
+              {resolvedTickets.length > 0 && (
+                <span className="ml-1.5 bg-gray-100 text-gray-600 rounded-full px-1.5 py-0.5 text-xs">
+                  {resolvedTickets.length}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* Ticket list */}
+          <div className="flex-1 overflow-y-auto p-3">
+            {loading && <p className="text-sm text-gray-400 text-center mt-10">Ładowanie...</p>}
+            {error   && <p className="text-sm text-red-400 text-center mt-10">{error}</p>}
+            {!loading && !error && displayedTickets.length === 0 && (
+              <p className="text-sm text-gray-400 text-center mt-10">Brak zgłoszeń</p>
+            )}
+            {displayedTickets.map(t => (
+              <TicketCard key={t.id} ticket={t} selected={selected?.id === t.id} onClick={() => setSelected(t)} />
+            ))}
+          </div>
         </div>
+
         <div className="flex-1 overflow-y-auto p-5">
           {selected
             ? <TicketDetail key={selected.id} ticket={selected} onUpdate={handleUpdate} />
