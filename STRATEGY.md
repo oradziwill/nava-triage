@@ -27,7 +27,7 @@
 ### Voice briefing
 
 - Jeden przycisk odtwarza ~40-sekundowe podsumowanie aktywnych zgłoszeń w języku polskim (ElevenLabs TTS)
-- Briefing generuje się automatycznie po każdej zmianie w ticketach i jest cache'owany przez 30 minut
+- Briefing generuje się automatycznie po każdej zmianie w ticketach i jest cache'owany
 - Oddzielne intro z datą i liczbą krytycznych spraw
 
 ### Komendy głosowe

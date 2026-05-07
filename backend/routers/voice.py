@@ -1,6 +1,5 @@
 import base64
 import uuid
-from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, UploadFile, File
@@ -26,7 +25,6 @@ from services.ticket_ops import (
 router = APIRouter(prefix="/api/voice", tags=["voice"])
 
 _PRIORITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3}
-_CACHE_TTL_SECONDS = 1800  # 30 min
 _PRIORITY_PL = {"critical": "krytyczny", "high": "wysoki", "medium": "średni", "low": "niski"}
 
 
@@ -58,17 +56,21 @@ async def _extract_intent(transcript: str, context_text: str | None = None) -> d
 
 # ── GET /api/voice/briefing ─────────────────────────────────────────────────
 
+def _cache_is_fresh(cache) -> bool:
+    return bool(cache.audio_bytes)
+
+
 @router.get("/briefing")
-async def get_briefing():
+async def get_briefing(background_tasks: BackgroundTasks):
     cache = get_cache()
-    if cache.audio_bytes and cache.generated_at:
-        age = (datetime.now() - cache.generated_at).total_seconds()
-        if age < _CACHE_TTL_SECONDS:
-            return Response(
-                content=cache.audio_bytes,
-                media_type="audio/mpeg",
-                headers={"Content-Disposition": "inline; filename=briefing.mp3"},
-            )
+    if _cache_is_fresh(cache):
+        return Response(
+            content=cache.audio_bytes,
+            media_type="audio/mpeg",
+            headers={"Content-Disposition": "inline; filename=briefing.mp3"},
+        )
+    if not cache.is_generating:
+        background_tasks.add_task(regenerate_briefing_background)
     return JSONResponse({"status": "generating", "retry_after": 8}, status_code=202)
 
 
@@ -78,7 +80,7 @@ async def get_briefing():
 async def briefing_status():
     cache = get_cache()
     return {
-        "ready": cache.audio_bytes is not None and cache.generated_at is not None,
+        "ready": _cache_is_fresh(cache),
         "generated_at": cache.generated_at.isoformat() if cache.generated_at else None,
         "ticket_count": cache.ticket_count,
         "is_generating": cache.is_generating,

@@ -33,8 +33,8 @@ Zasady dotyczące języka (KRYTYCZNE — lektor czyta tekst wprost):
 - Tylko zdania oddzielone kropkami — tekst musi brzmieć naturalnie czytany na głos
 
 Zasady treści:
-- NIE zaczynaj od "Dzień dobry" ani daty — intro zostało już odtworzone
-- Zacznij bezpośrednio: "Masz {ticket_count_word} aktywnych spraw."
+- NIE zaczynaj od "Dzień dobry", daty ani liczby zgłoszeń — intro zostało już odtworzone i zawiera te informacje
+- Zacznij bezpośrednio od najważniejszej sprawy
 - Zgłoszenia krytyczne i wysokie: każde w osobnym zdaniu z krótkim opisem problemu i sugerowaną akcją
 - Zgłoszenia średnie i niskie: łącznie w jednym zdaniu ("Poza tym trzy sprawy rutynowe...")
 - Zakończ jednym konkretnym zaleceniem co zrobić najpierw

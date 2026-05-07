@@ -108,7 +108,17 @@ export function VoiceBriefing() {
   }
 
   function startPollingForBriefing() {
+    let attempts = 0
+    const MAX_ATTEMPTS = 20 // 60s at 3s intervals
+
     pollRef.current = setInterval(async () => {
+      attempts++
+      if (attempts > MAX_ATTEMPTS) {
+        if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
+        setPlayState('idle')
+        setError('Briefing nie jest gotowy. Spróbuj ponownie za chwilę.')
+        return
+      }
       try {
         const blob = await getBriefing()
         if (blob) {
@@ -118,7 +128,11 @@ export function VoiceBriefing() {
           setPlayState('playing-briefing')
           queue.current.play(0, () => { setPlayState('idle'); setCacheReady(true) })
         }
-      } catch {}
+      } catch (e) {
+        if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
+        setPlayState('idle')
+        setError(e instanceof Error ? e.message : 'Błąd pobierania briefingu.')
+      }
     }, 3_000)
   }
 
